@@ -29,7 +29,7 @@ try:
 except ImportError:
     _SDK_AVAILABLE = False
 
-DEFAULT_MODEL = "gemini-2.5-flash-lite"
+DEFAULT_MODEL = "gemini-3.5-flash-lite"
 
 # Roughly a large chapter's worth of notes. Keeps requests fast, keeps us
 # comfortably inside the model's context window, and keeps free-tier usage
