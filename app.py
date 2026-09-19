@@ -100,7 +100,7 @@ if st.session_state.page == "📤 Upload Notes":
                         topics = notes_processor.extract_topics_with_ai(raw_text)
                         topic_names = [t["topic"] for t in topics]
                         new_cards = flashcard_generator.generate_flashcards_with_ai(
-                            raw_text, topic_names, num_cards)
+                            raw_text, topic_names)
                     used_ai = True
                 except ai_client.AIError as e:
                     st.warning(f"Gemini couldn't be used ({e}). Falling back to offline generation.")
