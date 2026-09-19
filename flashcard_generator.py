@@ -94,7 +94,7 @@ class _AIFlashcard(BaseModel):
     answer: str
 
 
-def generate_flashcards_with_ai(text: str, topic_names: list = None, num_cards: int = 15):
+def generate_flashcards_with_ai(text: str, topic_names: list = None):
     """
     Asks Gemini to write active-recall flashcards directly from the notes.
     Returns the same shape as the offline generator. Raises ai_client.AIError
