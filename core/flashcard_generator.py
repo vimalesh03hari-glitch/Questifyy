@@ -73,8 +73,29 @@ def generate_flashcards_from_topic(topic: str, content: str, max_cards: int = 6)
     return cards
 
 
-def generate_all_flashcards(topics: list[dict], max_cards_per_topic: int = 6):
+def generate_all_flashcards(
+    topics: list[dict],
+    max_cards_per_topic: int = 6
+):
     all_cards = []
+
     for t in topics:
-        all_cards.extend(generate_flashcards_from_topic(t["topic"], t["content"], max_cards_per_topic))
+        all_cards.extend(
+            generate_flashcards_from_topic(
+                t["topic"],
+                t["content"],
+                max_cards_per_topic
+            )
+        )
+
     return all_cards
+
+
+def generate_flashcards_with_ai(
+    topics,
+    max_cards_per_topic=6
+):
+    return generate_all_flashcards(
+        topics,
+        max_cards_per_topic
+    )
