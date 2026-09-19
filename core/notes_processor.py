@@ -97,3 +97,6 @@ def extract_text_from_upload(uploaded_file):
 
     else:
         raise ValueError("Unsupported file type. Please upload a TXT, PDF, or DOCX file.")
+      def extract_topics_with_ai(raw_text: str):
+    """Extract topics from notes."""
+    return extract_topics(raw_text)
