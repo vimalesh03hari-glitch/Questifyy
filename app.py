@@ -276,7 +276,6 @@ elif st.session_state.page == "📝 Weekly Practice Test":
     else:
         max_q = min(20, len(all_cards)) if all_cards else 15
         num_q = st.slider("Number of questions", 3, max(max_q, 3), min(10, max(max_q, 3)))
-
         use_ai = ai_client.is_configured() and has_notes_text
         button_label = "🎯 Generate New Practice Test (Gemini)" if use_ai else "🎯 Generate New Practice Test"
 
