@@ -138,7 +138,7 @@ def generate_structured(prompt: str, response_schema=None, system_instruction: s
             raise AIError("Gemini blocked this content. Try different notes or fewer questions.")
         if "timeout" in msg or "deadline" in msg:
             raise AIError("Gemini took too long to respond. Please try again.")
-        raise AIError("Couldn't reach Gemini right now. Please try again in a moment.")
+            raise AIError("Couldn't reach Gemini right now. Please try again in a moment.")
 
     # Prefer the SDK's auto-parsed structured output when a schema was given.
     parsed = getattr(response, "parsed", None)
