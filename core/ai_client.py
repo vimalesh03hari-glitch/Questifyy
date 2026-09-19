@@ -129,6 +129,7 @@ def generate_structured(prompt: str, response_schema=None, system_instruction: s
         )
     except Exception as e:
         msg = str(e).lower()
+        print("GEMINI ERROR:", type(e).__name__, str(e)[:300])
         if "api key" in msg or "permission" in msg or "unauthenticated" in msg or "401" in msg:
             raise AIError("Gemini rejected the API key. Check GEMINI_API_KEY in Streamlit secrets.")
         if "quota" in msg or "rate" in msg or "429" in msg or "resource_exhausted" in msg:
@@ -137,9 +138,7 @@ def generate_structured(prompt: str, response_schema=None, system_instruction: s
             raise AIError("Gemini blocked this content. Try different notes or fewer questions.")
         if "timeout" in msg or "deadline" in msg:
             raise AIError("Gemini took too long to respond. Please try again.")
-            print("GEMINI ERROR:", type(e).__name__, str(e)[:300])
-            raise AIError("Couldn't reach Gemini right now. Please try again in a moment.")
-            
+        raise AIError("Couldn't reach Gemini right now. Please try again in a moment.")
 
     # Prefer the SDK's auto-parsed structured output when a schema was given.
     parsed = getattr(response, "parsed", None)
