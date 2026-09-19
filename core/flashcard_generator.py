@@ -155,11 +155,6 @@ def generate_all_flashcards(
     return all_cards
 
 
-def generate_flashcards_with_ai(
-    topics,
-    max_cards_per_topic=6
-):
-    return generate_all_flashcards(
-        topics,
-        max_cards_per_topic
-    )
+def generate_flashcards_with_ai(raw_text, topic_names=None, max_cards_per_topic=6):
+    topics = [{"topic": t, "content": raw_text} for t in (topic_names or ["General Notes"])]
+    return generate_all_flashcards(topics, max_cards_per_topic)        
