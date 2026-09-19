@@ -4,6 +4,12 @@ Hackathon project: turns raw notes into active recall, with a Pomodoro study
 scheduler, daily flashcards (spaced repetition), weekly practice tests, and a
 scorecard that shows exactly what to revise next.
 
+When a GEMINI_API_KEY is configured in Streamlit secrets, topic extraction,
+flashcard generation, quiz generation, and revision recommendations are all
+powered by Gemini. Without a key (or if a Gemini call fails), the app falls
+back to the original offline/heuristic generators automatically — nothing
+breaks either way.
+
 Run with:  streamlit run app.py
 """
 
@@ -12,7 +18,7 @@ import streamlit.components.v1 as components
 from datetime import datetime
 
 from core import storage, notes_processor, flashcard_generator, spaced_repetition
-from core import pomodoro, quiz_generator, scorecard
+from core import pomodoro, quiz_generator, scorecard, ai_client
 
 st.set_page_config(page_title="StudyBuddy — Learn From Your Notes", page_icon="📚", layout="wide")
 
@@ -31,29 +37,81 @@ if "quiz_answers" not in st.session_state:
 
 st.sidebar.title("📚 StudyBuddy")
 st.sidebar.caption("Learn From Your Notes — Versathon 2.0")
+
+# AI status badge — never shows the key itself, just whether it's configured.
+if ai_client.is_configured():
+    st.sidebar.success("✨ Gemini AI: connected")
+else:
+    st.sidebar.warning("⚙️ Gemini AI: not configured — using offline mode")
+    with st.sidebar.expander("How to enable Gemini"):
+        st.write(
+            "Add a `GEMINI_API_KEY` secret in Streamlit Cloud → Settings → "
+            "Secrets (or a `GEMINI_API_KEY` environment variable locally), "
+            "then reload the app."
+        )
+
 st.session_state.page = st.sidebar.radio("Go to", PAGES, index=PAGES.index(st.session_state.page))
 
 all_cards = storage.load("cards")
 
+
+def _latest_notes_entry():
+    notes_log = storage.load("notes")
+    return notes_log[-1] if notes_log else None
+
+
 # ---------------------------------------------------------------- UPLOAD ----
 if st.session_state.page == "📤 Upload Notes":
     st.header("📤 Upload / Paste Your Notes")
-    st.write("Paste your notes or upload a .txt file. We'll split them into topics "
+    st.write("Upload a document or paste your notes below. We'll identify the topics "
              "and auto-generate active-recall flashcards — no more just re-reading.")
 
-    uploaded = st.file_uploader("Upload a .txt file", type=["txt"])
+    uploaded = st.file_uploader("Upload a .txt, .pdf, or .docx file", type=["txt", "pdf", "docx"])
     pasted = st.text_area("...or paste notes here", height=220,
                            placeholder="Paste chapter notes, lecture summary, etc.")
 
-    max_per_topic = st.slider("Max flashcards per topic", 3, 12, 6)
+    num_cards = st.slider("Approx. number of flashcards to generate", 5, 40, 15)
 
     if st.button("Generate Flashcards", type="primary"):
-        raw_text = uploaded.read().decode("utf-8", errors="ignore") if uploaded else pasted
-        if not raw_text or not raw_text.strip():
-            st.warning("Please paste some notes or upload a file first.")
-        else:
-            topics = notes_processor.extract_topics(raw_text)
-            new_cards = flashcard_generator.generate_all_flashcards(topics, max_per_topic)
+        raw_text = None
+        try:
+            if uploaded is not None:
+                raw_text = notes_processor.extract_text_from_upload(uploaded)
+            elif pasted and pasted.strip():
+                raw_text = pasted.strip()
+            else:
+                st.warning("Please paste some notes or upload a file first.")
+        except ValueError as e:
+            st.error(str(e))
+
+        if raw_text:
+            _, was_truncated = ai_client.truncate_for_prompt(raw_text)
+            if was_truncated:
+                st.info("These notes are quite long — only the first portion will be "
+                         "sent to Gemini for topic/flashcard generation so things stay fast.")
+
+            topics = None
+            new_cards = None
+            used_ai = False
+
+            if ai_client.is_configured():
+                try:
+                    with st.spinner("Asking Gemini to organize your topics and build flashcards..."):
+                        topics = notes_processor.extract_topics_with_ai(raw_text)
+                        topic_names = [t["topic"] for t in topics]
+                        new_cards = flashcard_generator.generate_flashcards_with_ai(
+                            raw_text, topic_names, num_cards)
+                    used_ai = True
+                except ai_client.AIError as e:
+                    st.warning(f"Gemini couldn't be used ({e}). Falling back to offline generation.")
+
+            if new_cards is None:
+                # Offline fallback (also the default path when no API key is set)
+                heuristic_topics = notes_processor.extract_topics(raw_text)
+                per_topic = max(3, num_cards // max(len(heuristic_topics), 1))
+                new_cards = flashcard_generator.generate_all_flashcards(heuristic_topics, per_topic)
+                topics = [{"topic": t["topic"], "summary": ""} for t in heuristic_topics]
+
             for c in new_cards:
                 spaced_repetition.initialize_card(c)
 
@@ -62,13 +120,22 @@ if st.session_state.page == "📤 Upload Notes":
             storage.save("cards", existing)
 
             notes_log = storage.load("notes")
-            notes_log.append({"timestamp": storage.now_iso(), "topics": [t["topic"] for t in topics]})
+            notes_log.append({
+                "timestamp": storage.now_iso(),
+                "text": raw_text,
+                "topics": [t["topic"] for t in topics],
+            })
             storage.save("notes", notes_log)
 
-            st.success(f"Generated {len(new_cards)} flashcards across {len(topics)} topic(s)!")
+            source = "Gemini" if used_ai else "offline generator"
+            st.success(f"Generated {len(new_cards)} flashcards across {len(topics)} topic(s) using the {source}!")
             for t in topics:
-                st.markdown(f"**{t['topic']}**")
-            st.info("Head to '🗂️ Daily Flashcards' to start reviewing.")
+                if t.get("summary"):
+                    st.markdown(f"**{t['topic']}** — {t['summary']}")
+                else:
+                    st.markdown(f"**{t['topic']}**")
+            st.info("Head to '🗂️ Daily Flashcards' to start reviewing, or "
+                    "'📝 Weekly Practice Test' to generate a quiz from these notes.")
 
     if all_cards:
         st.divider()
@@ -201,15 +268,40 @@ elif st.session_state.page == "⏱️ Pomodoro Timer":
 elif st.session_state.page == "📝 Weekly Practice Test":
     st.header("📝 Weekly Practice Test")
 
-    if not all_cards:
-        st.info("No flashcards yet — upload notes first.")
-    else:
-        num_q = st.slider("Number of questions", 3, min(20, len(all_cards)), min(10, len(all_cards)))
+    latest_notes = _latest_notes_entry()
+    has_notes_text = bool(latest_notes and latest_notes.get("text"))
 
-        if st.button("🎯 Generate New Practice Test", type="primary"):
-            st.session_state.current_quiz = quiz_generator.generate_quiz(all_cards, num_q)
-            st.session_state.quiz_answers = {}
-            st.session_state.quiz_submitted = False
+    if not all_cards and not has_notes_text:
+        st.info("No flashcards or notes yet — upload notes first.")
+    else:
+        max_q = min(20, len(all_cards)) if all_cards else 15
+        num_q = st.slider("Number of questions", 3, max(max_q, 3), min(10, max(max_q, 3)))
+
+        use_ai = ai_client.is_configured() and has_notes_text
+        button_label = "🎯 Generate New Practice Test (Gemini)" if use_ai else "🎯 Generate New Practice Test"
+
+        if st.button(button_label, type="primary"):
+            quiz = None
+            if use_ai:
+                try:
+                    with st.spinner("Asking Gemini to write your practice test..."):
+                        topic_names = latest_notes.get("topics")
+                        quiz = quiz_generator.generate_quiz_with_ai(
+                            latest_notes["text"], topic_names, num_q)
+                except ai_client.AIError as e:
+                    st.warning(f"Gemini couldn't be used ({e}). Falling back to the flashcard-based quiz.")
+
+            if quiz is None:
+                if not all_cards:
+                    st.error("No flashcards available to build an offline quiz from — "
+                              "upload notes on the previous page first.")
+                else:
+                    quiz = quiz_generator.generate_quiz(all_cards, num_q)
+
+            if quiz:
+                st.session_state.current_quiz = quiz
+                st.session_state.quiz_answers = {}
+                st.session_state.quiz_submitted = False
 
         quiz = st.session_state.current_quiz
         if quiz:
@@ -260,8 +352,17 @@ elif st.session_state.page == "📊 Scorecard":
         weak = scorecard.weak_topics()
         if weak:
             st.subheader("📌 Focus on these next")
+
+            ai_recs = {}
+            if ai_client.is_configured():
+                try:
+                    with st.spinner("Asking Gemini for personalized revision tips..."):
+                        ai_recs = scorecard.generate_ai_recommendations(weak)
+                except ai_client.AIError as e:
+                    st.caption(f"(Personalized AI tips unavailable right now: {e})")
+
             for w in weak:
-                st.warning(f"**{w['topic']}** — only {w['accuracy']}% accuracy. "
-                           f"Revisit the flashcards for this topic today.")
+                tip = ai_recs.get(w["topic"]) or scorecard.fallback_recommendation(w["topic"])
+                st.warning(f"**{w['topic']}** — only {w['accuracy']}% accuracy. {tip}")
         else:
             st.success("No weak topics below 70% — great work!")
