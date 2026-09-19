@@ -99,4 +99,4 @@ def generate_ai_recommendations(weak: list) -> dict:
 
 def fallback_recommendation(topic: str) -> str:
     return (f"Revisit your flashcards for **{topic}** daily and redo the practice "
-            f"questions until your accuracy climbs above 70%
+            f"questions until your accuracy climbs above 70%"
