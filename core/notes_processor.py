@@ -77,3 +77,23 @@ def split_sentences(text: str):
     # naive sentence splitter, good enough for study notes
     sentences = re.split(r"(?<=[.!?])\s+", text)
     return [s.strip() for s in sentences if len(s.strip()) > 25]
+  
+def extract_text_from_upload(uploaded_file):
+    """Extract plain text from an uploaded TXT, PDF, or DOCX file."""
+    filename = uploaded_file.name.lower()
+
+    if filename.endswith(".txt"):
+        return uploaded_file.getvalue().decode("utf-8", errors="ignore")
+
+    elif filename.endswith(".pdf"):
+        from pypdf import PdfReader
+        reader = PdfReader(uploaded_file)
+        return "\n".join(page.extract_text() or "" for page in reader.pages)
+
+    elif filename.endswith(".docx"):
+        from docx import Document
+        doc = Document(uploaded_file)
+        return "\n".join(p.text for p in doc.paragraphs)
+
+    else:
+        raise ValueError("Unsupported file type. Please upload a TXT, PDF, or DOCX file.")
