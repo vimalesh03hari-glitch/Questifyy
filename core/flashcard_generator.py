@@ -137,8 +137,7 @@ def generate_all_flashcards(
 
     for topic_data in topics:
 
-        topic = topic_data.get("topic", "General Notes")
-        return generate_all_flashcards(topics, max_cards_per_topic)    
+        topic = topic_data.get("topic", "General Notes") 
         content = topic_data.get(
             "content",
             ""
