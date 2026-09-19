@@ -275,7 +275,11 @@ elif st.session_state.page == "📝 Weekly Practice Test":
         st.info("No flashcards or notes yet — upload notes first.")
     else:
         max_q = min(20, len(all_cards)) if all_cards else 15
-        num_q = st.slider("Number of questions", 3, max(max_q, 3), min(10, max(max_q, 3)))
+        if max_q > 3:
+            num_q = st.slider("Number of questions",3,max_q, min(10, max_q))
+        else:
+             num_q = max_q  # too few questions for a slider
+             st.info(f"Only {max_q} question(s) available.")
         use_ai = ai_client.is_configured() and has_notes_text
         button_label = "🎯 Generate New Practice Test (Gemini)" if use_ai else "🎯 Generate New Practice Test"
 
