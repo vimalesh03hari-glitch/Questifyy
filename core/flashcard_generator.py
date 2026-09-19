@@ -1,10 +1,3 @@
-"""
-flashcard_generator.py
-
-Builds ACTIVE RECALL flashcards (cloze deletion / fill-in-the-blank)
-from notes.
-"""
-
 import re
 import uuid
 
@@ -28,8 +21,6 @@ TRIGGER_RE = re.compile(
 
 
 def _pick_blank_word(sentence):
-    """Pick the term to hide."""
-
     match = TRIGGER_RE.search(sentence)
 
     if match:
@@ -52,8 +43,9 @@ def _pick_blank_word(sentence):
         cleaned = word.strip(".,;:")
 
         if (
-            word[:1].isupper()
-            and word.lower() not in ("the", "a", "an")
+            cleaned
+            and cleaned[0].isupper()
+            and cleaned.lower() not in ("the", "a", "an")
         ):
             capitalized.append(cleaned)
 
@@ -79,8 +71,6 @@ def generate_flashcards_from_topic(
     content,
     max_cards=6
 ):
-    """Generate flashcards for one topic."""
-
     if not content:
         return []
 
@@ -90,9 +80,7 @@ def generate_flashcards_from_topic(
         sentences = [content.strip()]
 
     sentences.sort(
-        key=lambda s: (
-            0 if TRIGGER_RE.search(s) else 1
-        )
+        key=lambda s: 0 if TRIGGER_RE.search(s) else 1
     )
 
     cards = []
@@ -124,14 +112,16 @@ def generate_flashcards_from_topic(
         if question == sentence:
             continue
 
-        cards.append({
-            "id": str(uuid.uuid4())[:8],
-            "topic": topic,
-            "question": question,
-            "answer": blank,
-            "box": 1,
-            "next_due": None,
-        })
+        cards.append(
+            {
+                "id": str(uuid.uuid4())[:8],
+                "topic": topic,
+                "question": question,
+                "answer": blank,
+                "box": 1,
+                "next_due": None,
+            }
+        )
 
     return cards
 
@@ -140,8 +130,6 @@ def generate_all_flashcards(
     topics,
     max_cards_per_topic=6
 ):
-    """Generate flashcards for all topics."""
-
     all_cards = []
 
     if not topics:
@@ -174,10 +162,6 @@ def generate_flashcards_with_ai(
     topics,
     max_cards_per_topic=6
 ):
-    """
-    Compatibility function called by app.py.
-    """
-
     return generate_all_flashcards(
         topics,
         max_cards_per_topic
